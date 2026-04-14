@@ -10,6 +10,15 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  stock-watchlist-service:
+    build: ./stock-watchlist-service
+    ports:
+      - "8002:8000"
+    environment:
+      DATABASE_URL: postgresql://stock:stock@postgres:5432/stock_prices
+    depends_on:
+      - postgres
+
   localstack:
     image: localstack/localstack:latest
     ports:
