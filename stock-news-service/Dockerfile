@@ -14,4 +14,4 @@ COPY . .
 
 # Default: run the FastAPI server
 # Override CMD to run the cron job: python cron.py
-CMD ["uv", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
+CMD ["uv", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

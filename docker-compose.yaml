@@ -4,29 +4,58 @@ services:
     environment:
       POSTGRES_USER: stock
       POSTGRES_PASSWORD: stock
-      POSTGRES_DB: stock_prices
+      # POSTGRES_DB: stock
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+  stock-price-service:
+    build: ./stock-price-service
+    ports:
+      - "8004:8000"
+    env_file: ./stock-price-service/.env
+    depends_on:
+      - postgres
+
+  stock-news-service:
+    build: ./stock-news-service
+    ports:
+      - "8003:8000"
+    env_file: ./stock-news-service/.env
+    depends_on:
+      - postgres
 
   stock-watchlist-service:
     build: ./stock-watchlist-service
     ports:
       - "8002:8000"
-    environment:
-      DATABASE_URL: postgresql://stock:stock@postgres:5432/stock_prices
+    env_file: ./stock-watchlist-service/.env
     depends_on:
       - postgres
+
+  dashboard:
+    build: ./dashboard
+    ports:
+      - "3000:3000"
+    environment:
+      PRICE_API_BASE_URL: http://stock-price-service:8000
+      NEWS_API_BASE_URL: http://stock-news-service:8000
+    depends_on:
+      - stock-price-service
+      - stock-news-service
 
   localstack:
     image: localstack/localstack:latest
     ports:
       - "4566:4566"
+    env_file: ./localstack/.env
     environment:
       SERVICES: sns,sqs
       DEFAULT_REGION: us-east-1
       AWS_DEFAULT_REGION: us-east-1
+      # LOCALSTACK_AUTH_TOKEN: ${LOCALSTACK_AUTH_TOKEN}
     volumes:
       - ./localstack/init:/etc/localstack/init/ready.d
     healthcheck:
@@ -35,13 +64,13 @@ services:
       timeout: 5s
       retries: 5
 
-  prometheus:
-    image: prom/prometheus:latest
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus_data:/prometheus
+  # prometheus:
+  #   image: prom/prometheus:latest
+  #   ports:
+  #     - "9090:9090"
+  #   volumes:
+  #     - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+  #     - prometheus_data:/prometheus
 
 volumes:
   postgres_data:
