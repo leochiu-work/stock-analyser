@@ -12,28 +12,61 @@ services:
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
 
   stock-price-service:
-    build: ./stock-price-service
+    image: ghcr.io/astral-sh/uv:python3.12-alpine
+    volumes:
+      - ./stock-price-service:/app
+    working_dir: /app
+    command: sh -c "uv sync && uv run uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
     ports:
       - "8004:8000"
-    env_file: ./stock-price-service/.env
     depends_on:
       - postgres
 
   stock-news-service:
-    build: ./stock-news-service
+    image: ghcr.io/astral-sh/uv:python3.12-alpine
+    volumes:
+      - ./stock-news-service:/app
+    working_dir: /app
+    command: sh -c "uv sync && uv run uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
     ports:
       - "8003:8000"
-    env_file: ./stock-news-service/.env
     depends_on:
       - postgres
 
   stock-watchlist-service:
-    build: ./stock-watchlist-service
+    image: ghcr.io/astral-sh/uv:python3.12-alpine
+    volumes:
+      - ./stock-watchlist-service:/app
+    working_dir: /app
+    command: sh -c "uv sync && uv run uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
     ports:
       - "8002:8000"
-    env_file: ./stock-watchlist-service/.env
     depends_on:
       - postgres
+
+  # stock-price-service:
+  #   build: ./stock-price-service
+  #   ports:
+  #     - "8004:8000"
+  #   env_file: ./stock-price-service/.env
+  #   depends_on:
+  #     - postgres
+
+  # stock-news-service:
+  #   build: ./stock-news-service
+  #   ports:
+  #     - "8003:8000"
+  #   env_file: ./stock-news-service/.env
+  #   depends_on:
+  #     - postgres
+
+  # stock-watchlist-service:
+  #   build: ./stock-watchlist-service
+  #   ports:
+  #     - "8002:8000"
+  #   env_file: ./stock-watchlist-service/.env
+  #   depends_on:
+  #     - postgres
 
   dashboard:
     build: ./dashboard

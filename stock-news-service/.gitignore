@@ -1,0 +1,37 @@
+# Environment / secrets
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Virtual environment
+.venv/
+
+# Data output
+data/
+
+# pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# mypy / ruff / pyright
+.mypy_cache/
+.ruff_cache/
+.pyright/
+
+# Alembic — never commit auto-generated __pycache__ inside versions
+alembic/versions/__pycache__/
+
+# OS
+.DS_Store
+Thumbs.db
