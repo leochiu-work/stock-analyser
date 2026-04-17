@@ -4,14 +4,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository Overview
 
-A monorepo of Python microservices that fetch and serve financial data. Each service is fully independent — own dependencies, database, and Dockerfile.
+A monorepo of Python microservices and a Next.js dashboard that fetch and serve financial data. Each Python service is fully independent — own dependencies, database, and Dockerfile.
 
-| Service | Port | Data Source | Database |
-|---------|------|-------------|----------|
-| `stock-price-service` | 8000 | yfinance (OHLC prices) | `stock_prices` |
-| `stock-news-service` | 8001 | Finnhub (news articles) | `stock_news` |
+| Service | Host Port | Data Source | Database |
+|---------|-----------|-------------|----------|
+| `stock-price-service` | 8004 | yfinance (OHLC prices) | `stock_price` |
+| `stock-news-service` | 8003 | Finnhub (news articles) | `stock_news` |
+| `stock-watchlist-service` | 8002 | — (local only) | `stock_watchlist` |
+| `dashboard` | 3000 | Proxies to above services | — |
+
+All Python services listen on port 8000 inside their container; host ports differ as above.
 
 ## Common Commands
+
+### Python services
 
 All commands run from within the service directory (e.g. `cd stock-price-service`).
 
@@ -25,7 +31,7 @@ uv run alembic upgrade head
 # Start the API server (with hot reload)
 uv run uvicorn main:app --reload
 
-# Run the cron job manually
+# Run the cron job manually (stock-price-service and stock-news-service only)
 uv run python cron.py
 
 # Run all tests
@@ -38,19 +44,36 @@ uv run pytest tests/test_news_router.py -v
 uv run pytest tests/test_news_router.py::test_get_news_start_date_filter -v
 ```
 
-## Local Infrastructure
-
-PostgreSQL and LocalStack (SNS/SQS) are defined at the repo root:
+### Dashboard (Next.js)
 
 ```bash
-docker compose up -d   # starts postgres on :5432 and localstack on :4566
+cd dashboard
+npm install
+npm run dev   # starts on :3000
 ```
 
-Each service has a `.env.example` — copy to `.env` and fill in credentials before running locally.
+## Local Infrastructure
+
+All services, PostgreSQL, and LocalStack are defined at the repo root:
+
+```bash
+docker compose up -d   # starts all services, postgres on :5432, localstack on :4566
+```
+
+PostgreSQL is initialised with three databases by `postgres/init.sql`:
+- `stock_price`, `stock_news`, `stock_watchlist`
+
+LocalStack (`localstack/init/01_setup.sh`) creates:
+- SNS topic: `stock-events`
+- SQS queue: `stock-events-queue` (subscribed to the topic)
+
+Each Python service has a `.env.example` — copy to `.env` and fill in credentials before running locally.
 
 ## Architecture
 
-Both services follow an identical layered pattern:
+### Python microservices
+
+All three services follow an identical layered pattern:
 
 ```
 main.py / cron.py           ← entry points
@@ -66,6 +89,18 @@ alembic/
   env.py                    ← imports app.models to register metadata; reads URL from settings
   versions/                 ← one migration file per schema version
 ```
+
+### Dashboard (Next.js BFF)
+
+```
+dashboard/src/app/
+  api/prices/route.ts       ← proxies to stock-price-service
+  api/news/route.ts         ← proxies to stock-news-service
+  prices/page.tsx
+  news/page.tsx
+```
+
+Upstream URLs are injected via environment variables (`PRICE_API_BASE_URL`, `NEWS_API_BASE_URL`, `WATCHLIST_API_BASE_URL`).
 
 ### Key design decisions
 

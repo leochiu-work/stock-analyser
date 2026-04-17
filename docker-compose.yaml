@@ -69,16 +69,24 @@ services:
   #     - postgres
 
   dashboard:
-    build: ./dashboard
+    # build: ./dashboard
+    image: "node:25-alpine3.22"
+    user: "node"
+    working_dir: /home/node/app
+    volumes:
+      - ./dashboard:/home/node/app
     ports:
       - "3000:3000"
+    command: sh -c "npm install && npm run dev"
     environment:
+      NODE_ENV: development
       PRICE_API_BASE_URL: http://stock-price-service:8000
       NEWS_API_BASE_URL: http://stock-news-service:8000
+      WATCHLIST_API_BASE_URL: http://stock-watchlist-service:8000
     depends_on:
       - stock-price-service
       - stock-news-service
-
+      - stock-watchlist-service
   localstack:
     image: localstack/localstack:latest
     ports:
