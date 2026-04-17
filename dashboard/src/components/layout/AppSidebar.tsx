@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { TrendingUp, Newspaper, BarChart2 } from 'lucide-react';
+import { TrendingUp, Newspaper, BarChart2, Star } from 'lucide-react';
 import {
   Sidebar,
   SidebarContent,
@@ -17,6 +17,7 @@ import {
 const navItems = [
   { href: '/prices', label: 'Prices', icon: TrendingUp },
   { href: '/news', label: 'News', icon: Newspaper },
+  { href: '/watchlist', label: 'Watchlist', icon: Star },
 ];
 
 export function AppSidebar() {

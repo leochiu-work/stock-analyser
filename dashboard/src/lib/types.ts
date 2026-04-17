@@ -49,3 +49,13 @@ export interface NewsQueryParams {
   offset?: number;
   limit?: number;
 }
+
+export interface WatchlistItem {
+  symbol: string;
+  created_at: string;
+}
+
+export interface WatchlistResponse {
+  total: number;
+  items: WatchlistItem[];
+}

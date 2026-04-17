@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -21,3 +21,12 @@ def add_ticker(
 ) -> WatchlistTickerItem:
     service = WatchlistService(db)
     return service.add_ticker(body.symbol)
+
+
+@router.delete("/{symbol}", status_code=204)
+def delete_ticker(symbol: str, db: Session = Depends(get_db)) -> Response:
+    service = WatchlistService(db)
+    found = service.remove_ticker(symbol)
+    if not found:
+        raise HTTPException(status_code=404, detail="Ticker not found")
+    return Response(status_code=204)

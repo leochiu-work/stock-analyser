@@ -15,3 +15,11 @@ class WatchlistRepository:
         db.execute(stmt)
         db.commit()
         return db.query(WatchlistTicker).filter(WatchlistTicker.symbol == symbol).one()
+
+    def delete_by_symbol(self, db: Session, symbol: str) -> bool:
+        obj = db.query(WatchlistTicker).filter(WatchlistTicker.symbol == symbol).first()
+        if not obj:
+            return False
+        db.delete(obj)
+        db.commit()
+        return True

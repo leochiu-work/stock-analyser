@@ -15,6 +15,7 @@ import { ThemeToggle } from './ThemeToggle';
 const PAGE_NAMES: Record<string, string> = {
   '/prices': 'Prices',
   '/news': 'News',
+  '/watchlist': 'Watchlist',
 };
 
 export function TopBar() {

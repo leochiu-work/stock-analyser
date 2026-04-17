@@ -17,3 +17,6 @@ class WatchlistService:
     def add_ticker(self, symbol: str) -> WatchlistTickerItem:
         ticker = self._repo.add(self._db, symbol)
         return WatchlistTickerItem.model_validate(ticker)
+
+    def remove_ticker(self, symbol: str) -> bool:
+        return self._repo.delete_by_symbol(self._db, symbol.strip().upper())
