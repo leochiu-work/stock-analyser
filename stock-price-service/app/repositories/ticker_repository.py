@@ -12,6 +12,13 @@ class TickerRepository:
     def get_all(self) -> list[Ticker]:
         return self.db.query(Ticker).all()
 
+    def get_or_create(self, symbol: str) -> Ticker:
+        ticker = self.db.query(Ticker).filter(Ticker.symbol == symbol).first()
+        if ticker is None:
+            ticker = Ticker(symbol=symbol)
+            self.db.add(ticker)
+        return ticker
+
     def update_last_fetch_date(self, symbol: str, fetch_date: date) -> None:
         ticker = self.db.query(Ticker).filter(Ticker.symbol == symbol).first()
         if ticker:

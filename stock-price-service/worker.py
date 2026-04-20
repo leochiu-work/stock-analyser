@@ -7,10 +7,15 @@ Run with: uv run python worker.py
 
 import json
 import logging
+from datetime import date, timedelta
 
 import boto3
 
 from app.config import settings
+from app.database import SessionLocal
+from app.repositories.stock_price_repository import StockPriceRepository
+from app.repositories.ticker_repository import TickerRepository
+from app.services.fetch_service import FetchService
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -19,8 +24,19 @@ POLL_WAIT_SECONDS = 20  # long-polling interval
 
 
 def handle_new_symbol_added(symbol: str) -> None:
-    # TODO: trigger price fetch for the newly added symbol
-    logger.info("Received NEW_SYMBOL_ADDED for %s — TODO: implement action", symbol)
+    start_date = date.today() - timedelta(days=5 * 365)
+    end_date = date.today()
+    db = SessionLocal()
+    try:
+        TickerRepository(db).get_or_create(symbol)
+        records = FetchService().fetch_prices(symbol, start_date, end_date)
+        StockPriceRepository(db).upsert_many(records)
+        db.commit()
+        logger.info("Upserted %d records for %s", len(records), symbol)
+    except Exception:
+        logger.exception("Failed to fetch/save prices for %s", symbol)
+    finally:
+        db.close()
 
 
 def process_message(message: dict) -> None:
