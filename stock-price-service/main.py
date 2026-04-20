@@ -1,6 +1,16 @@
+import sys
+import logging
+
 from fastapi import FastAPI
 
 from app.routers import stock_prices
+
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(levelname)s:     %(message)s",
+    stream=sys.stdout  # Ensure it goes to the same stream as Uvicorn
+)
 
 app = FastAPI(
     title="Stock Price Service",

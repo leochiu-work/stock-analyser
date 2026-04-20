@@ -21,6 +21,17 @@ services:
       - "8004:8000"
     depends_on:
       - postgres
+      - localstack
+
+  stock-price-worker:
+    image: ghcr.io/astral-sh/uv:python3.12-alpine
+    volumes:
+      - ./stock-price-service:/app
+    working_dir: /app
+    command: sh -c "uv sync && uv run python worker.py"
+    depends_on:
+      localstack: # No dash here
+        condition: service_healthy
 
   stock-news-service:
     image: ghcr.io/astral-sh/uv:python3.12-alpine
@@ -32,6 +43,7 @@ services:
       - "8003:8000"
     depends_on:
       - postgres
+      - localstack
 
   stock-watchlist-service:
     image: ghcr.io/astral-sh/uv:python3.12-alpine
@@ -43,6 +55,7 @@ services:
       - "8002:8000"
     depends_on:
       - postgres
+      - localstack
 
   # stock-price-service:
   #   build: ./stock-price-service
@@ -87,6 +100,7 @@ services:
       - stock-price-service
       - stock-news-service
       - stock-watchlist-service
+
   localstack:
     image: localstack/localstack:latest
     ports:
@@ -100,7 +114,7 @@ services:
     volumes:
       - ./localstack/init:/etc/localstack/init/ready.d
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      test: curl -fs http://localhost:4566/_localstack/init/ready | grep -q '"completed":\s*true'
       interval: 10s
       timeout: 5s
       retries: 5

@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 
 from app.repositories.watchlist_repository import WatchlistRepository
 from app.schemas.watchlist import WatchlistResponse, WatchlistTickerItem
+from app.sns_publisher import publish_new_symbol_added
 
 
 class WatchlistService:
@@ -16,6 +17,7 @@ class WatchlistService:
 
     def add_ticker(self, symbol: str) -> WatchlistTickerItem:
         ticker = self._repo.add(self._db, symbol)
+        publish_new_symbol_added(ticker.symbol)
         return WatchlistTickerItem.model_validate(ticker)
 
     def remove_ticker(self, symbol: str) -> bool:
