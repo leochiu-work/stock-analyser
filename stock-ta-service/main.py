@@ -3,21 +3,21 @@ import logging
 
 from fastapi import FastAPI
 
-from app.routers import watchlist
+from app.routers import ta_router
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(levelname)s:     %(message)s",
-    stream=sys.stdout  # Ensure it goes to the same stream as Uvicorn
+    stream=sys.stdout,
 )
 
 app = FastAPI(
-    title="Stock Watchlist Service",
-    description="Manages a watchlist of stock ticker symbols.",
+    title="Stock TA Service",
+    description="Computes technical analysis indicators from OHLC price data.",
     version="0.1.0",
 )
 
-app.include_router(watchlist.router)
+app.include_router(ta_router.router)
 
 
 @app.get("/health", tags=["health"])

@@ -1,6 +1,8 @@
+import json
 import logging
 from datetime import date, timedelta
 
+import boto3
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -16,6 +18,25 @@ class CronService:
         self.stock_repo = StockPriceRepository(db)
         self.ticker_repo = TickerRepository(db)
         self.fetch_service = fetch_service or FetchService()
+
+    def _publish_prices_fetched(self, symbol: str) -> None:
+        if not settings.sns_prices_fetched_topic_arn:
+            return
+        try:
+            sns = boto3.client(
+                "sns",
+                endpoint_url=settings.aws_endpoint_url,
+                region_name=settings.aws_region,
+                aws_access_key_id="test",
+                aws_secret_access_key="test",
+            )
+            sns.publish(
+                TopicArn=settings.sns_prices_fetched_topic_arn,
+                Message=json.dumps({"event": "PRICES_FETCHED", "symbol": symbol}),
+            )
+            logger.info("%s: published PRICES_FETCHED event", symbol)
+        except Exception:
+            logger.warning("%s: failed to publish PRICES_FETCHED event", symbol, exc_info=True)
 
     def run(self) -> dict[str, dict]:
         """
@@ -53,6 +74,7 @@ class CronService:
                 count = self.stock_repo.upsert_many(records)
                 self.ticker_repo.update_last_fetch_date(symbol, today)
 
+                self._publish_prices_fetched(symbol)
                 logger.info("%s: upserted %d records", symbol, count)
                 results[symbol] = {"status": "ok", "records_upserted": count}
 

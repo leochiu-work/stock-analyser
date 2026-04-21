@@ -1,38 +1,39 @@
 """
-SQS worker for stock-news-service.
+SQS worker for stock-ta-service.
 
-Polls the stock-news-service-queue and handles NEW_SYMBOL_ADDED events.
+Polls the stock-ta-service-queue and handles PRICES_FETCHED events.
 Run with: uv run python worker.py
 """
 
 import json
 import logging
-import time
 
 import boto3
 
 from app.config import settings
+from app.database import SessionLocal
+from app.services.ta_service import compute_and_store
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
-POLL_WAIT_SECONDS = 20  # long-polling interval
-
-
-def handle_new_symbol_added(symbol: str) -> None:
-    # TODO: trigger news fetch for the newly added symbol
-    logger.info("Received NEW_SYMBOL_ADDED for %s — TODO: implement action", symbol)
+POLL_WAIT_SECONDS = 20
 
 
 def process_message(message: dict) -> None:
     try:
-        # SNS wraps the original payload inside Message
         outer = json.loads(message["Body"])
         payload = json.loads(outer["Message"])
         event = payload.get("event")
 
-        if event == "NEW_SYMBOL_ADDED":
-            handle_new_symbol_added(payload["symbol"])
+        if event == "PRICES_FETCHED":
+            symbol = payload["symbol"]
+            db = SessionLocal()
+            try:
+                count = compute_and_store(db, symbol)
+                logger.info("Computed and stored %d TA rows for %s", count, symbol)
+            finally:
+                db.close()
         else:
             logger.warning("Unknown event type: %s", event)
     except Exception:
@@ -42,12 +43,12 @@ def process_message(message: dict) -> None:
 def run() -> None:
     sqs = boto3.client(
         "sqs",
-        endpoint_url=settings.AWS_ENDPOINT_URL,
-        region_name=settings.AWS_REGION,
+        endpoint_url=settings.aws_endpoint_url,
+        region_name=settings.aws_region,
         aws_access_key_id="test",
         aws_secret_access_key="test",
     )
-    queue_url = settings.SQS_NEW_SYMBOL_QUEUE_URL
+    queue_url = settings.sqs_prices_fetched_queue_url
     logger.info("Starting worker, polling %s", queue_url)
 
     while True:

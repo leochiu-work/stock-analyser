@@ -53,7 +53,7 @@ stock-ta-service/
      PRICE_SERVICE_BASE_URL=http://stock-price-service:8000
      AWS_ENDPOINT_URL=http://localstack:4566
      AWS_REGION=us-east-1
-     SQS_PRICES_FETCHED_QUEUE_URL=http://sqs.us-east-1.localhost.localstack.cloud:4566/000000000000/stock-ta-prices-fetched-queue
+     SQS_PRICES_FETCHED_QUEUE_URL=http://sqs.us-east-1.localhost.localstack.cloud:4566/000000000000/stock-ta-service-queue
      ```
 
 3. **Database setup**
@@ -99,16 +99,18 @@ stock-ta-service/
 
 8. **LocalStack infrastructure** (`localstack/init/01_setup.sh`)
    - Add after existing setup:
+
      ```bash
      echo "Creating SNS topic: prices-fetched"
      PRICES_TOPIC_ARN=$(awslocal sns create-topic --name prices-fetched --query TopicArn --output text)
 
-     echo "Creating SQS queue: stock-ta-prices-fetched-queue"
-     TA_QUEUE_URL=$(awslocal sqs create-queue --queue-name stock-ta-prices-fetched-queue --query QueueUrl --output text)
+     echo "Creating SQS queue: stock-ta-service-queue"
+     TA_QUEUE_URL=$(awslocal sqs create-queue --queue-name stock-ta-service-queue --query QueueUrl --output text)
      TA_QUEUE_ARN=$(awslocal sqs get-queue-attributes --queue-url "$TA_QUEUE_URL" --attribute-names QueueArn --query Attributes.QueueArn --output text)
 
      awslocal sns subscribe --topic-arn "$PRICES_TOPIC_ARN" --protocol sqs --notification-endpoint "$TA_QUEUE_ARN"
      ```
+
    - `stock-price-service` must also be updated to publish `PRICES_FETCHED` events to `prices-fetched` SNS topic after each successful cron/worker fetch
 
 9. **stock-price-service changes** (separate task)
@@ -124,6 +126,7 @@ stock-ta-service/
     - `test_ta_service.py` — mock `price_client` and `ta_repository`; assert orchestration logic
 
 11. **Dockerfile**
+
     ```dockerfile
     FROM python:3.12-slim
     WORKDIR /app
@@ -135,6 +138,7 @@ stock-ta-service/
     ```
 
 12. **docker-compose** (root `docker-compose.yaml`)
+
     ```yaml
     stock-ta-service:
       build: ./stock-ta-service

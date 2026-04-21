@@ -24,11 +24,11 @@ Tests require no database — `conftest.py` sets a dummy `DATABASE_URL` env var 
 
 Three entry points:
 
-| File | Purpose |
-|------|---------|
-| `main.py` | FastAPI app — mounts the `stock_prices` router |
-| `cron.py` | Scheduled price fetcher — reads tickers, fetches via yfinance, upserts |
-| `worker.py` | Long-polling SQS worker — handles `NEW_SYMBOL_ADDED` events |
+| File        | Purpose                                                                |
+| ----------- | ---------------------------------------------------------------------- |
+| `main.py`   | FastAPI app — mounts the `stock_prices` router                         |
+| `cron.py`   | Scheduled price fetcher — reads tickers, fetches via yfinance, upserts |
+| `worker.py` | Long-polling SQS worker — handles `NEW_SYMBOL_ADDED` events            |
 
 ### Services
 
@@ -38,16 +38,16 @@ Three entry points:
 
 ### SQS worker
 
-`worker.py` polls `stock-price-new-symbol-queue` (a dedicated per-service queue, distinct from the shared `stock-events-queue`). SNS wraps the payload in an outer `Message` field — `process_message` double-decodes JSON to extract the inner `event` and `symbol`. The `handle_new_symbol_added` handler is a stub (TODO).
+`worker.py` polls `stock-price-service-queue` (a dedicated per-service queue, distinct from the shared `stock-events-queue`). SNS wraps the payload in an outer `Message` field — `process_message` double-decodes JSON to extract the inner `event` and `symbol`. The `handle_new_symbol_added` handler is a stub (TODO).
 
 ### Configuration (`.env`)
 
-| Variable | Default | Notes |
-|----------|---------|-------|
-| `DATABASE_URL` | required | PostgreSQL connection string |
-| `DEFAULT_START_DATE` | `2020-01-01` | Fetch start date when a ticker has no history |
-| `AWS_ENDPOINT_URL` | `http://localstack:4566` | Override to point at real AWS |
-| `SQS_NEW_SYMBOL_QUEUE_URL` | LocalStack default | Queue polled by `worker.py` |
+| Variable                   | Default                  | Notes                                         |
+| -------------------------- | ------------------------ | --------------------------------------------- |
+| `DATABASE_URL`             | required                 | PostgreSQL connection string                  |
+| `DEFAULT_START_DATE`       | `2020-01-01`             | Fetch start date when a ticker has no history |
+| `AWS_ENDPOINT_URL`         | `http://localstack:4566` | Override to point at real AWS                 |
+| `SQS_NEW_SYMBOL_QUEUE_URL` | LocalStack default       | Queue polled by `worker.py`                   |
 
 ### API
 

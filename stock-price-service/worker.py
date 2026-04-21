@@ -1,7 +1,7 @@
 """
 SQS worker for stock-price-service.
 
-Polls the stock-price-new-symbol-queue and handles NEW_SYMBOL_ADDED events.
+Polls the stock-price-service-queue and handles NEW_SYMBOL_ADDED events.
 Run with: uv run python worker.py
 """
 
@@ -23,6 +23,26 @@ logger = logging.getLogger(__name__)
 POLL_WAIT_SECONDS = 20  # long-polling interval
 
 
+def _publish_prices_fetched(symbol: str) -> None:
+    if not settings.sns_prices_fetched_topic_arn:
+        return
+    try:
+        sns = boto3.client(
+            "sns",
+            endpoint_url=settings.aws_endpoint_url,
+            region_name=settings.aws_region,
+            aws_access_key_id="test",
+            aws_secret_access_key="test",
+        )
+        sns.publish(
+            TopicArn=settings.sns_prices_fetched_topic_arn,
+            Message=json.dumps({"event": "PRICES_FETCHED", "symbol": symbol}),
+        )
+        logger.info("Published PRICES_FETCHED event for %s", symbol)
+    except Exception:
+        logger.warning("Failed to publish PRICES_FETCHED event for %s", symbol, exc_info=True)
+
+
 def handle_new_symbol_added(symbol: str) -> None:
     start_date = date.today() - timedelta(days=5 * 365)
     end_date = date.today()
@@ -33,6 +53,7 @@ def handle_new_symbol_added(symbol: str) -> None:
         StockPriceRepository(db).upsert_many(records)
         db.commit()
         logger.info("Upserted %d records for %s", len(records), symbol)
+        _publish_prices_fetched(symbol)
     except Exception:
         logger.exception("Failed to fetch/save prices for %s", symbol)
     finally:
