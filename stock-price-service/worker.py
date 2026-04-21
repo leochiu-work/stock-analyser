@@ -23,7 +23,26 @@ logger = logging.getLogger(__name__)
 POLL_WAIT_SECONDS = 20  # long-polling interval
 
 
-def _publish_prices_fetched(symbol: str) -> None:
+def _save_prices_to_s3(symbol: str, records: list) -> str:
+    s3_key = f"prices/{symbol}/{date.today().isoformat()}.json"
+    s3 = boto3.client(
+        "s3",
+        endpoint_url=settings.aws_endpoint_url,
+        region_name=settings.aws_region,
+        aws_access_key_id="test",
+        aws_secret_access_key="test",
+    )
+    s3.put_object(
+        Bucket=settings.s3_prices_bucket,
+        Key=s3_key,
+        Body=json.dumps(records, default=str),
+        ContentType="application/json",
+    )
+    logger.info("Saved %d records to s3://%s/%s", len(records), settings.s3_prices_bucket, s3_key)
+    return s3_key
+
+
+def _publish_prices_fetched(symbol: str, s3_bucket: str, s3_key: str) -> None:
     if not settings.sns_prices_fetched_topic_arn:
         return
     try:
@@ -36,7 +55,12 @@ def _publish_prices_fetched(symbol: str) -> None:
         )
         sns.publish(
             TopicArn=settings.sns_prices_fetched_topic_arn,
-            Message=json.dumps({"event": "PRICES_FETCHED", "symbol": symbol}),
+            Message=json.dumps({
+                "event": "PRICES_FETCHED",
+                "symbol": symbol,
+                "s3_bucket": s3_bucket,
+                "s3_key": s3_key,
+            }),
         )
         logger.info("Published PRICES_FETCHED event for %s", symbol)
     except Exception:
@@ -53,7 +77,12 @@ def handle_new_symbol_added(symbol: str) -> None:
         StockPriceRepository(db).upsert_many(records)
         db.commit()
         logger.info("Upserted %d records for %s", len(records), symbol)
-        _publish_prices_fetched(symbol)
+        try:
+            s3_key = _save_prices_to_s3(symbol, records)
+        except Exception:
+            logger.warning("Failed to save prices to S3 for %s — skipping publish", symbol, exc_info=True)
+            return
+        _publish_prices_fetched(symbol, settings.s3_prices_bucket, s3_key)
     except Exception:
         logger.exception("Failed to fetch/save prices for %s", symbol)
     finally:

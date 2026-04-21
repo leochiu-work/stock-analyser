@@ -12,7 +12,8 @@ import boto3
 
 from app.config import settings
 from app.database import SessionLocal
-from app.services.ta_service import compute_and_store
+from app.services import price_client
+from app.services.ta_service import compute_and_store_from_records
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -28,9 +29,12 @@ def process_message(message: dict) -> None:
 
         if event == "PRICES_FETCHED":
             symbol = payload["symbol"]
+            s3_bucket = payload["s3_bucket"]
+            s3_key = payload["s3_key"]
+            ohlc_records = price_client.fetch_ohlc_from_s3(s3_bucket, s3_key)
             db = SessionLocal()
             try:
-                count = compute_and_store(db, symbol)
+                count = compute_and_store_from_records(db, symbol, ohlc_records)
                 logger.info("Computed and stored %d TA rows for %s", count, symbol)
             finally:
                 db.close()

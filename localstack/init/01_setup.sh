@@ -57,4 +57,8 @@ awslocal sns subscribe \
   --protocol sqs \
   --notification-endpoint "$TA_QUEUE_ARN"
 
-echo "LocalStack SNS/SQS setup complete"
+echo "Creating S3 bucket: stock-prices-bucket"
+awslocal s3api create-bucket --bucket stock-prices-bucket
+echo "S3 bucket created"
+
+echo "LocalStack SNS/SQS/S3 setup complete"

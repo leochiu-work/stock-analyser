@@ -129,7 +129,7 @@ services:
       - "4566:4566"
     env_file: ./localstack/.env
     environment:
-      SERVICES: sns,sqs
+      SERVICES: sns,sqs,s3
       DEFAULT_REGION: us-east-1
       AWS_DEFAULT_REGION: us-east-1
       # LOCALSTACK_AUTH_TOKEN: ${LOCALSTACK_AUTH_TOKEN}

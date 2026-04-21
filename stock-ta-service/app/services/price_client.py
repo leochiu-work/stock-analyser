@@ -1,5 +1,7 @@
+import json
 import logging
 
+import boto3
 import httpx
 
 from app.config import settings
@@ -30,3 +32,18 @@ def fetch_ohlc(symbol: str) -> list[dict]:
 
     logger.info("Fetched %d OHLC records for %s", len(all_records), symbol)
     return all_records
+
+
+def fetch_ohlc_from_s3(s3_bucket: str, s3_key: str) -> list[dict]:
+    """Download OHLC records from an S3 JSON object."""
+    s3 = boto3.client(
+        "s3",
+        endpoint_url=settings.aws_endpoint_url,
+        region_name=settings.aws_region,
+        aws_access_key_id="test",
+        aws_secret_access_key="test",
+    )
+    response = s3.get_object(Bucket=s3_bucket, Key=s3_key)
+    records = json.loads(response["Body"].read())
+    logger.info("Fetched %d OHLC records from s3://%s/%s", len(records), s3_bucket, s3_key)
+    return records

@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     aws_region: str = "us-east-1"
     sqs_new_symbol_queue_url: str = "http://sqs.us-east-1.localhost.localstack.cloud:4566/000000000000/stock-price-service-queue"
     sns_prices_fetched_topic_arn: str = ""
+    s3_prices_bucket: str = "stock-prices-bucket"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
