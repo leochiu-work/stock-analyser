@@ -32,12 +32,18 @@ exec(open("strategy.py").read(), globals())
 bt = Backtest(data, TradingStrategy, cash=10_000, commission=0.002)
 stats = bt.run()
 
-output = {}
-for k, v in stats.items():
-    try:
-        output[k] = float(v)
-    except (TypeError, ValueError):
-        output[k] = str(v)
+stats.drop(["_strategy", "_equity_curve", "_trades"], inplace=True)
+output = json.loads(stats.to_json())
+
+# output = {}
+# for k, v in stats.items():
+#     if pd.isna(v):
+#         output[k] = None
+#     else:
+#         try:
+#             output[k] = float(v)
+#         except (TypeError, ValueError):
+#             output[k] = str(v)
 
 print(json.dumps(output))
 """
@@ -66,11 +72,11 @@ def run(state: StrategyState) -> dict:
             try:
                 execution_stats = json.loads(stdout)
             except json.JSONDecodeError:
-                logger.warning("Executor: failed to parse stdout as JSON: %s", stdout[:500])
+                logger.warning("Executor: failed to parse stdout as JSON: %s", stdout)
                 execution_stats = {"error": stdout}
             code_error = ""
         except CommandExitException as exc:
-            logger.warning("Executor: sandbox command failed: %s", str(exc)[:500])
+            logger.warning("Executor: sandbox command failed: %s", str(exc))
             execution_stats = {}
             code_error = str(exc)
 

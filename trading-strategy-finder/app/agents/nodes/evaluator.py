@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 
-from langchain_ollama import OllamaLLM
+from langchain_ollama import ChatOllama
+from pydantic import BaseModel, Field
 
 from app.agents.state import StrategyState
 from app.config import settings
@@ -12,14 +12,11 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 
-def _extract_json(text: str) -> dict:
-    match = re.search(r"\{.*\}", text, re.DOTALL)
-    if match:
-        try:
-            return json.loads(match.group(0))
-        except json.JSONDecodeError:
-            pass
-    return {"score": 0.0, "approved": False, "reason": "Failed to parse LLM response", "qualitative_evaluation": text}
+class EvaluationResult(BaseModel):
+    score: float = Field(description="Score between 0 and 10")
+    approved: bool = Field(description="True if all rubric criteria are met")
+    reason: str = Field(description="Brief explanation of approval or rejection")
+    qualitative_evaluation: str = Field(description="1-2 sentence qualitative assessment")
 
 
 def run(state: StrategyState) -> dict:
@@ -36,24 +33,19 @@ Evaluation rubric:
 - Sharpe Ratio > 0.5: good risk-adjusted returns
 - Total Return > 0%: strategy must be profitable
 - Max Drawdown < 50%: acceptable risk exposure
-- Number of Trades > 5: sufficient trading activity
+- Number of Trades > 5: sufficient trading activity"""
 
-Respond with ONLY a JSON object in this exact format:
-{{
-  "score": <float between 0 and 10>,
-  "approved": <true if all rubric criteria met, false otherwise>,
-  "reason": "<brief explanation of approval or rejection>",
-  "qualitative_evaluation": "<1-2 sentence qualitative assessment>"
-}}"""
 
-    llm = OllamaLLM(model=settings.ollama_model, base_url=settings.ollama_base_url)
-    response = llm.invoke(prompt)
-    parsed = _extract_json(response)
+    logging.info("prompt: %s", prompt)
 
-    score = float(parsed.get("score", 0.0))
-    approved = bool(parsed.get("approved", False))
-    reason = str(parsed.get("reason", ""))
-    qualitative = str(parsed.get("qualitative_evaluation", ""))
+    llm = ChatOllama(model=settings.ollama_model, base_url=settings.ollama_base_url)
+    structured_llm = llm.with_structured_output(EvaluationResult)
+    parsed: EvaluationResult = structured_llm.invoke(prompt)
+
+    score = parsed.score
+    approved = parsed.approved
+    reason = parsed.reason
+    qualitative = parsed.qualitative_evaluation
 
     current_best = state.get("best_result") or {}
     current_best_score = current_best.get("ai_score", -1) if current_best else -1
