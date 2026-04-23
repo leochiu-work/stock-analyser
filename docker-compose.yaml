@@ -118,10 +118,13 @@ services:
       PRICE_API_BASE_URL: http://stock-price-service:8000
       NEWS_API_BASE_URL: http://stock-news-service:8000
       WATCHLIST_API_BASE_URL: http://stock-watchlist-service:8000
+      STRATEGY_API_BASE_URL: http://trading-strategy-finder:8000
+      STRATEGY_API_KEY: changeme
     depends_on:
       - stock-price-service
       - stock-news-service
       - stock-watchlist-service
+      - trading-strategy-finder
 
   localstack:
     image: localstack/localstack:latest
@@ -141,6 +144,25 @@ services:
       timeout: 5s
       retries: 5
 
+  chromadb:
+    image: chromadb/chroma:latest
+    ports:
+      - "8007:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+
+  trading-strategy-finder:
+    image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+    volumes:
+      - ./trading-strategy-finder:/app
+    working_dir: /app
+    command: sh -c "uv sync && uv run uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+    ports:
+      - "8006:8000"
+    depends_on:
+      - postgres
+      - chromadb
+
   # prometheus:
   #   image: prom/prometheus:latest
   #   ports:
@@ -152,3 +174,4 @@ services:
 volumes:
   postgres_data:
   prometheus_data:
+  chroma_data:

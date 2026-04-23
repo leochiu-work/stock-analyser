@@ -1,0 +1,33 @@
+[project]
+name = "trading-strategy-finder"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "sqlalchemy>=2.0",
+    "alembic",
+    "psycopg2-binary",
+    "pydantic-settings",
+    "python-dotenv",
+    "langgraph",
+    "langchain-core",
+    "langchain-ollama",
+    "chromadb",
+    "e2b-code-interpreter",
+    "backtesting",
+    "httpx",
+    "pandas",
+    "python-dateutil",
+]
+
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-mock",
+    "pytest-asyncio",
+    "httpx",
+]

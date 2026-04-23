@@ -59,3 +59,37 @@ export interface WatchlistResponse {
   total: number;
   items: WatchlistItem[];
 }
+
+export type StrategyStatus = 'pending' | 'running' | 'completed' | 'failed';
+
+export interface StrategyItem {
+  id: string;
+  ticker: string;
+  name: string | null;
+  description: string | null;
+  status: StrategyStatus;
+  iterations: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BacktestResult {
+  id: string;
+  strategy_id: string;
+  sharpe_ratio: number | null;
+  total_return_pct: number | null;
+  max_drawdown_pct: number | null;
+  win_rate_pct: number | null;
+  num_trades: number | null;
+  backtest_start: string | null;
+  backtest_end: string | null;
+  ai_evaluation: string | null;
+  ai_score: number | null;
+  approved: boolean;
+  rejection_reason: string | null;
+  created_at: string;
+}
+
+export interface StrategyWithResult extends StrategyItem {
+  latest_result: BacktestResult | null;
+}
