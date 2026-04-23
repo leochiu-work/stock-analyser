@@ -13,7 +13,9 @@ class StrategyState(TypedDict):
     rejection_reasons: list[str]
     csv_path: str
     csv_columns: list[str]
-    generated_code: str
+    strategy_path: str
+    code_error: str
+    code_fix_retries: int
     execution_stats: dict
     ai_score: float
     ai_evaluation: str

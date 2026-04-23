@@ -25,10 +25,18 @@ def run(state: StrategyState) -> dict:
     prices = price_client.get_prices(ticker, start_date, end_date)
     indicators = ta_client.get_indicators(ticker, start_date, end_date)
 
+    if not prices:
+        raise ValueError(f"No price data found for {ticker}. Ensure the ticker is tracked by stock-price-service.")
+    if not indicators:
+        raise ValueError(f"No TA indicator data found for {ticker}. Ensure the ticker is tracked by stock-ta-service and indicators have been computed.")
+
     df_prices = pd.DataFrame(prices)
     df_indicators = pd.DataFrame(indicators)
 
     merged = pd.merge(df_prices, df_indicators, on="date", how="inner", suffixes=("", "_ta"))
+
+    if merged.empty:
+        raise ValueError(f"No overlapping dates between price data and TA indicators for {ticker}.")
 
     cols_to_drop = [c for c in merged.columns if c in _DROP_COLUMNS or c.rstrip("_ta") in _DROP_COLUMNS]
     merged.drop(columns=cols_to_drop, errors="ignore", inplace=True)

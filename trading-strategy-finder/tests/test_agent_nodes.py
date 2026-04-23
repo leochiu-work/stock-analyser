@@ -23,7 +23,9 @@ def _base_state(**overrides) -> StrategyState:
         "rejection_reasons": [],
         "csv_path": "",
         "csv_columns": ["open", "high", "low", "close", "rsi", "macd"],
-        "generated_code": "import pandas as pd\nfrom backtesting import Strategy\ndata = pd.read_csv('data.csv', index_col='date', parse_dates=True)\nclass TradingStrategy(Strategy):\n    def init(self): pass\n    def next(self): pass",
+        "strategy_path": "",
+        "code_error": "",
+        "code_fix_retries": 0,
         "execution_stats": {},
         "ai_score": 0.0,
         "ai_evaluation": "",
@@ -156,7 +158,7 @@ class TestFetcherNode:
 class TestCoderNode:
     def test_prompt_contains_csv_columns(self):
         mock_llm = MagicMock()
-        mock_llm.invoke.return_value = '```python\nimport pandas as pd\nfrom backtesting import Strategy\ndata = pd.read_csv("data.csv", index_col="date", parse_dates=True)\nclass TradingStrategy(Strategy):\n    def init(self): pass\n    def next(self): pass\n```'
+        mock_llm.invoke.return_value = '```python\nfrom backtesting import Strategy\nclass TradingStrategy(Strategy):\n    def init(self): pass\n    def next(self): pass\n```'
 
         with patch("app.agents.nodes.coder.OllamaLLM", return_value=mock_llm):
             from app.agents.nodes import coder
@@ -166,10 +168,11 @@ class TestCoderNode:
         prompt = mock_llm.invoke.call_args[0][0]
         assert "open" in prompt
         assert "rsi" in prompt
-        assert "read_csv" in result["generated_code"]
+        assert "strategy_path" in result
+        assert result["strategy_path"].endswith(".py")
 
     def test_extracts_code_from_fenced_block(self):
-        code = 'import pandas as pd\ndata = pd.read_csv("data.csv", index_col="date", parse_dates=True)\nclass TradingStrategy: pass'
+        code = 'from backtesting import Strategy\nclass TradingStrategy(Strategy):\n    def init(self): pass\n    def next(self): pass'
         mock_llm = MagicMock()
         mock_llm.invoke.return_value = f"Here is the code:\n```python\n{code}\n```"
 
@@ -177,17 +180,22 @@ class TestCoderNode:
             from app.agents.nodes import coder
             result = coder.run(_base_state())
 
-        assert result["generated_code"] == code
+        assert result["strategy_path"].endswith(".py")
+        with open(result["strategy_path"]) as f:
+            assert f.read() == code
 
-    def test_generated_code_contains_read_csv(self):
+    def test_strategy_written_to_file(self):
         mock_llm = MagicMock()
-        mock_llm.invoke.return_value = '```python\ndata = pd.read_csv("data.csv", index_col="date", parse_dates=True)\nclass TradingStrategy(Strategy):\n    def init(self): pass\n    def next(self): pass\n```'
+        mock_llm.invoke.return_value = '```python\nfrom backtesting import Strategy\nclass TradingStrategy(Strategy):\n    def init(self): pass\n    def next(self): pass\n```'
 
         with patch("app.agents.nodes.coder.OllamaLLM", return_value=mock_llm):
             from app.agents.nodes import coder
             result = coder.run(_base_state())
 
-        assert 'read_csv("data.csv"' in result["generated_code"]
+        assert os.path.exists(result["strategy_path"])
+        with open(result["strategy_path"]) as f:
+            content = f.read()
+        assert "TradingStrategy" in content
 
 
 # ---------------------------------------------------------------------------
@@ -204,38 +212,50 @@ class TestExecutorNode:
         mock_sandbox = MagicMock()
         mock_sandbox.commands.run.return_value = mock_result
 
-        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f:
-            f.write(b"date,open,close\n2023-01-01,100,105\n")
-            csv_path = f.name
+        with (
+            tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as csv_f,
+            tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode="w") as py_f,
+        ):
+            csv_f.write(b"date,open,close\n2023-01-01,100,105\n")
+            csv_path = csv_f.name
+            py_f.write("class TradingStrategy: pass")
+            strategy_path = py_f.name
 
         try:
             with patch("app.agents.nodes.executor.e2b_code_interpreter.Sandbox", return_value=mock_sandbox):
                 from app.agents.nodes import executor
-                state = _base_state(csv_path=csv_path)
+                state = _base_state(csv_path=csv_path, strategy_path=strategy_path)
                 result = executor.run(state)
 
             assert result["execution_stats"]["Sharpe Ratio"] == 1.2
             assert mock_sandbox.files.write.called
         finally:
             os.unlink(csv_path)
+            os.unlink(strategy_path)
             mock_sandbox.kill.assert_called_once()
 
     def test_sandbox_killed_even_on_error(self):
         mock_sandbox = MagicMock()
         mock_sandbox.commands.run.side_effect = RuntimeError("Sandbox error")
 
-        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f:
-            f.write(b"date,open,close\n2023-01-01,100,105\n")
-            csv_path = f.name
+        with (
+            tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as csv_f,
+            tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode="w") as py_f,
+        ):
+            csv_f.write(b"date,open,close\n2023-01-01,100,105\n")
+            csv_path = csv_f.name
+            py_f.write("class TradingStrategy: pass")
+            strategy_path = py_f.name
 
         try:
             with patch("app.agents.nodes.executor.e2b_code_interpreter.Sandbox", return_value=mock_sandbox):
                 from app.agents.nodes import executor
                 with pytest.raises(RuntimeError):
-                    executor.run(_base_state(csv_path=csv_path))
+                    executor.run(_base_state(csv_path=csv_path, strategy_path=strategy_path))
             mock_sandbox.kill.assert_called_once()
         finally:
             os.unlink(csv_path)
+            os.unlink(strategy_path)
 
 
 # ---------------------------------------------------------------------------
@@ -391,7 +411,9 @@ class TestGraphIntegration:
                 "rejection_reasons": [],
                 "csv_path": "",
                 "csv_columns": [],
-                "generated_code": "",
+                "strategy_path": "",
+                "code_error": "",
+                "code_fix_retries": 0,
                 "execution_stats": {},
                 "ai_score": 0.0,
                 "ai_evaluation": "",
