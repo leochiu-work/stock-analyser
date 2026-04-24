@@ -60,7 +60,7 @@ export interface WatchlistResponse {
   items: WatchlistItem[];
 }
 
-export type StrategyStatus = 'pending' | 'running' | 'completed' | 'failed';
+export type StrategyStatus = "pending" | "running" | "completed" | "failed";
 
 export interface StrategyItem {
   id: string;
@@ -90,6 +90,4 @@ export interface BacktestResult {
   created_at: string;
 }
 
-export interface StrategyWithResult extends StrategyItem {
-  latest_result: BacktestResult | null;
-}
+export interface StrategyWithResult extends BacktestResult {}

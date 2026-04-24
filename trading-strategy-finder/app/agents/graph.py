@@ -11,12 +11,6 @@ def _route_after_executor(state: StrategyState) -> str:
     return "evaluator"
 
 
-def _route_after_evaluator(state: StrategyState) -> str:
-    if state["approved"] or state["iteration"] >= state["max_iterations"]:
-        return END
-    return "researcher"
-
-
 builder = StateGraph(StrategyState)
 builder.add_node("researcher", researcher.run)
 builder.add_node("fetcher", fetcher.run)
@@ -28,5 +22,5 @@ builder.add_edge("researcher", "fetcher")
 builder.add_edge("fetcher", "coder")
 builder.add_edge("coder", "executor")
 builder.add_conditional_edges("executor", _route_after_executor)
-builder.add_conditional_edges("evaluator", _route_after_evaluator)
+builder.add_edge("evaluator", END)
 graph = builder.compile()

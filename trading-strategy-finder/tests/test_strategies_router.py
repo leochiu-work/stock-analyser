@@ -3,12 +3,10 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from unittest.mock import MagicMock, patch
+from types import SimpleNamespace
+from unittest.mock import patch
 
-import pytest
 from fastapi.testclient import TestClient
-
-from app.models.strategy import Strategy
 
 
 API_KEY = "test-key"
@@ -19,24 +17,37 @@ def _make_orm_strategy(
     ticker: str = "AAPL",
     status: str = "completed",
     strategy_id: uuid.UUID | None = None,
-) -> Strategy:
-    s = Strategy.__new__(Strategy)
-    s.id = strategy_id or uuid.uuid4()
-    s.ticker = ticker
-    s.status = status
-    s.name = None
-    s.description = None
-    s.iterations = 1
-    s.parameters = None
-    s.created_at = datetime.utcnow()
-    s.updated_at = datetime.utcnow()
-    return s
+) -> SimpleNamespace:
+    """Return a plain namespace that satisfies StrategyResponse.model_validate(from_attributes=True)."""
+    return SimpleNamespace(
+        id=strategy_id or uuid.uuid4(),
+        ticker=ticker,
+        status=status,
+        hypothesis=None,
+        sharpe_ratio=None,
+        total_return_pct=None,
+        max_drawdown_pct=None,
+        win_rate_pct=None,
+        num_trades=None,
+        backtest_start=None,
+        backtest_end=None,
+        ai_evaluation=None,
+        ai_score=None,
+        approved=False,
+        rejection_reason=None,
+        raw_output=None,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+    )
 
 
 class TestStrategiesRouter:
     def test_post_research_returns_200(self, test_client: TestClient):
         strategy = _make_orm_strategy()
-        with patch("app.routers.strategies.strategy_service.run_research", return_value=strategy):
+        with patch(
+            "app.routers.strategies.strategy_service.run_research",
+            return_value=[strategy],
+        ):
             resp = test_client.post(
                 "/api/v1/strategies/research",
                 json={"ticker": "AAPL"},
@@ -44,8 +55,10 @@ class TestStrategiesRouter:
             )
         assert resp.status_code == 200
         body = resp.json()
-        assert body["ticker"] == "AAPL"
-        assert body["status"] == "completed"
+        assert isinstance(body, list)
+        assert len(body) == 1
+        assert body[0]["ticker"] == "AAPL"
+        assert body[0]["status"] == "completed"
 
     def test_post_research_409_when_already_running(self, test_client: TestClient):
         from fastapi import HTTPException
@@ -72,15 +85,12 @@ class TestStrategiesRouter:
     def test_get_by_id_returns_200(self, test_client: TestClient):
         sid = uuid.uuid4()
         strategy = _make_orm_strategy(strategy_id=sid)
-        with (
-            patch("app.routers.strategies.strategy_repository.get_by_id", return_value=strategy),
-            patch("app.routers.strategies.backtest_repository.get_best_by_strategy", return_value=None),
-        ):
+        with patch("app.routers.strategies.strategy_repository.get_by_id", return_value=strategy):
             resp = test_client.get(f"/api/v1/strategies/{sid}", headers=HEADERS)
         assert resp.status_code == 200
         body = resp.json()
         assert body["id"] == str(sid)
-        assert body["latest_result"] is None
+        assert body["ticker"] == "AAPL"
 
     def test_get_by_id_returns_404_when_missing(self, test_client: TestClient):
         with patch("app.routers.strategies.strategy_repository.get_by_id", return_value=None):

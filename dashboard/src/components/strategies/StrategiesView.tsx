@@ -1,36 +1,36 @@
-'use client';
-import { useState, KeyboardEvent } from 'react';
-import { useSWRConfig } from 'swr';
-import { Trash2, ChevronDown, ChevronRight } from 'lucide-react';
-import { useStrategies } from '@/hooks/useStrategies';
-import { createStrategy, deleteStrategy, fetchStrategyById } from '@/lib/api/strategies';
-import { StrategyItem, StrategyStatus, BacktestResult } from '@/lib/types';
-import { ErrorAlert } from '@/components/shared/ErrorAlert';
-import { LoadingSkeleton } from '@/components/shared/LoadingSkeleton';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { formatDate } from '@/lib/utils';
+"use client";
+import { useState, KeyboardEvent } from "react";
+import { useSWRConfig } from "swr";
+import { Trash2, ChevronDown, ChevronRight } from "lucide-react";
+import { useStrategies } from "@/hooks/useStrategies";
+import { createStrategy, deleteStrategy, fetchStrategyById } from "@/lib/api/strategies";
+import { StrategyItem, StrategyStatus, BacktestResult, StrategyWithResult } from "@/lib/types";
+import { ErrorAlert } from "@/components/shared/ErrorAlert";
+import { LoadingSkeleton } from "@/components/shared/LoadingSkeleton";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { formatDate } from "@/lib/utils";
 
 function statusBadge(status: StrategyStatus) {
   switch (status) {
-    case 'pending':
+    case "pending":
       return <Badge variant="secondary">pending</Badge>;
-    case 'running':
+    case "running":
       return <Badge variant="default">running…</Badge>;
-    case 'completed':
+    case "completed":
       return <Badge variant="outline">completed</Badge>;
-    case 'failed':
+    case "failed":
       return <Badge variant="destructive">failed</Badge>;
   }
 }
 
-function fmt(value: number | null, decimals = 2, suffix = '') {
-  if (value === null || value === undefined) return '—';
+function fmt(value: number | null, decimals = 2, suffix = "") {
+  if (value === null || value === undefined) return "—";
   return `${value.toFixed(decimals)}${suffix}`;
 }
 
-function ResultDetail({ result }: { result: BacktestResult }) {
+function ResultDetail({ result }: { result: StrategyWithResult }) {
   return (
     <tr>
       <td colSpan={6} className="px-6 pb-4 pt-0">
@@ -41,19 +41,19 @@ function ResultDetail({ result }: { result: BacktestResult }) {
           </div>
           <div>
             <p className="text-muted-foreground text-xs mb-1">Total Return</p>
-            <p className="font-semibold tabular-nums">{fmt(result.total_return_pct, 2, '%')}</p>
+            <p className="font-semibold tabular-nums">{fmt(result.total_return_pct, 2, "%")}</p>
           </div>
           <div>
             <p className="text-muted-foreground text-xs mb-1">Max Drawdown</p>
-            <p className="font-semibold tabular-nums">{fmt(result.max_drawdown_pct, 2, '%')}</p>
+            <p className="font-semibold tabular-nums">{fmt(result.max_drawdown_pct, 2, "%")}</p>
           </div>
           <div>
             <p className="text-muted-foreground text-xs mb-1">Win Rate</p>
-            <p className="font-semibold tabular-nums">{fmt(result.win_rate_pct, 2, '%')}</p>
+            <p className="font-semibold tabular-nums">{fmt(result.win_rate_pct, 2, "%")}</p>
           </div>
           <div>
             <p className="text-muted-foreground text-xs mb-1">Trades</p>
-            <p className="font-semibold tabular-nums">{result.num_trades ?? '—'}</p>
+            <p className="font-semibold tabular-nums">{result.num_trades ?? "—"}</p>
           </div>
           <div>
             <p className="text-muted-foreground text-xs mb-1">AI Score</p>
@@ -62,7 +62,9 @@ function ResultDetail({ result }: { result: BacktestResult }) {
           {result.backtest_start && result.backtest_end && (
             <div className="col-span-2">
               <p className="text-muted-foreground text-xs mb-1">Backtest Period</p>
-              <p className="font-semibold">{result.backtest_start} → {result.backtest_end}</p>
+              <p className="font-semibold">
+                {result.backtest_start} → {result.backtest_end}
+              </p>
             </div>
           )}
           {result.ai_evaluation && (
@@ -83,20 +85,12 @@ function ResultDetail({ result }: { result: BacktestResult }) {
   );
 }
 
-function StrategyRow({
-  item,
-  onDelete,
-  deleting,
-}: {
-  item: StrategyItem;
-  onDelete: (id: string) => void;
-  deleting: boolean;
-}) {
+function StrategyRow({ item, onDelete, deleting }: { item: StrategyItem; onDelete: (id: string) => void; deleting: boolean }) {
   const [expanded, setExpanded] = useState(false);
-  const [result, setResult] = useState<BacktestResult | null>(null);
+  const [result, setResult] = useState<StrategyWithResult | null>(null);
   const [loadingResult, setLoadingResult] = useState(false);
 
-  const canExpand = item.status === 'completed' || item.status === 'failed';
+  const canExpand = item.status === "completed" || item.status === "failed";
 
   async function toggleExpand() {
     if (!canExpand) return;
@@ -108,7 +102,7 @@ function StrategyRow({
       setLoadingResult(true);
       try {
         const full = await fetchStrategyById(item.id);
-        setResult(full.latest_result);
+        setResult(full);
       } finally {
         setLoadingResult(false);
       }
@@ -118,31 +112,14 @@ function StrategyRow({
 
   return (
     <>
-      <tr
-        className={`border-b last:border-0 hover:bg-muted/30 ${canExpand ? 'cursor-pointer' : ''}`}
-        onClick={toggleExpand}
-      >
-        <td className="px-4 py-3 w-6">
-          {canExpand && (
-            loadingResult
-              ? <span className="text-muted-foreground text-xs">…</span>
-              : expanded
-                ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                : <ChevronRight className="h-4 w-4 text-muted-foreground" />
-          )}
-        </td>
+      <tr className={`border-b last:border-0 hover:bg-muted/30 ${canExpand ? "cursor-pointer" : ""}`} onClick={toggleExpand}>
+        <td className="px-4 py-3 w-6">{canExpand && (loadingResult ? <span className="text-muted-foreground text-xs">…</span> : expanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />)}</td>
         <td className="px-4 py-3 font-mono font-semibold">{item.ticker}</td>
         <td className="px-4 py-3">{statusBadge(item.status)}</td>
         <td className="px-4 py-3 text-right tabular-nums">{item.iterations}</td>
         <td className="px-4 py-3 text-muted-foreground">{formatDate(item.created_at)}</td>
         <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-          <Button
-            variant="ghost"
-            size="icon"
-            disabled={deleting}
-            onClick={() => onDelete(item.id)}
-            aria-label={`Delete strategy for ${item.ticker}`}
-          >
+          <Button variant="ghost" size="icon" disabled={deleting} onClick={() => onDelete(item.id)} aria-label={`Delete strategy for ${item.ticker}`}>
             <Trash2 className="h-4 w-4 text-destructive" />
           </Button>
         </td>
@@ -156,7 +133,7 @@ export function StrategiesView() {
   const { data, error, isLoading } = useStrategies();
   const { mutate } = useSWRConfig();
 
-  const [ticker, setTicker] = useState('');
+  const [ticker, setTicker] = useState("");
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -168,10 +145,10 @@ export function StrategiesView() {
     setSubmitError(null);
     try {
       await createStrategy(trimmed);
-      setTicker('');
-      mutate(['strategies', JSON.stringify({})]);
+      setTicker("");
+      mutate(["strategies", JSON.stringify({})]);
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : 'Failed to start strategy research');
+      setSubmitError(err instanceof Error ? err.message : "Failed to start strategy research");
     } finally {
       setSubmitting(false);
     }
@@ -181,7 +158,7 @@ export function StrategiesView() {
     setDeletingId(id);
     try {
       await deleteStrategy(id);
-      mutate(['strategies', JSON.stringify({})]);
+      mutate(["strategies", JSON.stringify({})]);
     } catch {
       // leave list unchanged on error
     } finally {
@@ -190,7 +167,7 @@ export function StrategiesView() {
   }
 
   function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Enter') handleSubmit();
+    if (e.key === "Enter") handleSubmit();
   }
 
   return (
@@ -207,12 +184,10 @@ export function StrategiesView() {
             onKeyDown={handleKeyDown}
             disabled={submitting}
           />
-          {submitError && (
-            <p className="text-sm text-destructive">{submitError}</p>
-          )}
+          {submitError && <p className="text-sm text-destructive">{submitError}</p>}
         </div>
         <Button onClick={handleSubmit} disabled={submitting || !ticker.trim()}>
-          {submitting ? 'Starting…' : 'Find Strategy'}
+          {submitting ? "Starting…" : "Find Strategy"}
         </Button>
       </div>
 
@@ -241,14 +216,7 @@ export function StrategiesView() {
                   </td>
                 </tr>
               ) : (
-                data.map((item) => (
-                  <StrategyRow
-                    key={item.id}
-                    item={item}
-                    onDelete={handleDelete}
-                    deleting={deletingId === item.id}
-                  />
-                ))
+                data.map((item) => <StrategyRow key={item.id} item={item} onDelete={handleDelete} deleting={deletingId === item.id} />)
               )}
             </tbody>
           </table>

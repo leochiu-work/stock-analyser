@@ -6,7 +6,6 @@ from typing import TypedDict
 class StrategyState(TypedDict):
     ticker: str
     iteration: int
-    max_iterations: int
     rag_context: str
     hypothesis: str
     previous_hypotheses: list[str]
@@ -21,4 +20,3 @@ class StrategyState(TypedDict):
     ai_evaluation: str
     approved: bool
     rejection_reason: str | None
-    best_result: dict | None

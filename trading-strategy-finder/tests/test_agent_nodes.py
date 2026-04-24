@@ -4,19 +4,18 @@ from __future__ import annotations
 import json
 import os
 import tempfile
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
-import pandas as pd
 import pytest
 
 from app.agents.state import StrategyState
+from app.agents.nodes.evaluator import EvaluationResult
 
 
 def _base_state(**overrides) -> StrategyState:
     state: StrategyState = {
         "ticker": "AAPL",
         "iteration": 0,
-        "max_iterations": 3,
         "rag_context": "",
         "hypothesis": "Buy when RSI < 30, sell when RSI > 70.",
         "previous_hypotheses": [],
@@ -31,7 +30,6 @@ def _base_state(**overrides) -> StrategyState:
         "ai_evaluation": "",
         "approved": False,
         "rejection_reason": None,
-        "best_result": None,
     }
     state.update(overrides)
     return state
@@ -222,7 +220,7 @@ class TestExecutorNode:
             strategy_path = py_f.name
 
         try:
-            with patch("app.agents.nodes.executor.e2b_code_interpreter.Sandbox", return_value=mock_sandbox):
+            with patch("app.agents.nodes.executor.e2b_code_interpreter.Sandbox.create", return_value=mock_sandbox):
                 from app.agents.nodes import executor
                 state = _base_state(csv_path=csv_path, strategy_path=strategy_path)
                 result = executor.run(state)
@@ -248,7 +246,7 @@ class TestExecutorNode:
             strategy_path = py_f.name
 
         try:
-            with patch("app.agents.nodes.executor.e2b_code_interpreter.Sandbox", return_value=mock_sandbox):
+            with patch("app.agents.nodes.executor.e2b_code_interpreter.Sandbox.create", return_value=mock_sandbox):
                 from app.agents.nodes import executor
                 with pytest.raises(RuntimeError):
                     executor.run(_base_state(csv_path=csv_path, strategy_path=strategy_path))
@@ -262,12 +260,24 @@ class TestExecutorNode:
 # evaluator node
 # ---------------------------------------------------------------------------
 
-class TestEvaluatorNode:
-    def _run_evaluator(self, llm_response: str, state_overrides: dict = None):
-        mock_llm = MagicMock()
-        mock_llm.invoke.return_value = llm_response
+def _make_evaluator_mock(score: float, approved: bool, reason: str, qualitative: str) -> MagicMock:
+    """Return a mock ChatOllama whose with_structured_output chain returns an EvaluationResult."""
+    parsed = EvaluationResult(
+        score=score,
+        approved=approved,
+        reason=reason,
+        qualitative_evaluation=qualitative,
+    )
+    structured_llm = MagicMock()
+    structured_llm.invoke.return_value = parsed
+    mock_llm = MagicMock()
+    mock_llm.with_structured_output.return_value = structured_llm
+    return mock_llm
 
-        with patch("app.agents.nodes.evaluator.OllamaLLM", return_value=mock_llm):
+
+class TestEvaluatorNode:
+    def _run_evaluator(self, mock_llm: MagicMock, state_overrides: dict = None):
+        with patch("app.agents.nodes.evaluator.ChatOllama", return_value=mock_llm):
             from app.agents.nodes import evaluator
             state = _base_state(**(state_overrides or {}))
             state["execution_stats"] = {
@@ -280,113 +290,69 @@ class TestEvaluatorNode:
             return evaluator.run(state)
 
     def test_approval_path(self):
-        response = json.dumps({
-            "score": 8.5,
-            "approved": True,
-            "reason": "All criteria met",
-            "qualitative_evaluation": "Excellent risk-adjusted returns.",
-        })
-        result = self._run_evaluator(response)
+        mock_llm = _make_evaluator_mock(8.5, True, "All criteria met", "Excellent risk-adjusted returns.")
+        result = self._run_evaluator(mock_llm)
         assert result["approved"] is True
         assert result["ai_score"] == 8.5
         assert result["rejection_reason"] is None
 
     def test_rejection_path(self):
-        response = json.dumps({
-            "score": 3.0,
-            "approved": False,
-            "reason": "Sharpe ratio too low",
-            "qualitative_evaluation": "Strategy underperforms.",
-        })
-        result = self._run_evaluator(response)
+        mock_llm = _make_evaluator_mock(3.0, False, "Sharpe ratio too low", "Strategy underperforms.")
+        result = self._run_evaluator(mock_llm)
         assert result["approved"] is False
         assert result["rejection_reason"] == "Sharpe ratio too low"
-        assert "Sharpe ratio too low" in result["rejection_reasons"]
 
-    def test_iteration_incremented(self):
-        response = json.dumps({
-            "score": 5.0,
-            "approved": False,
-            "reason": "Mediocre",
-            "qualitative_evaluation": "OK.",
-        })
-        result = self._run_evaluator(response, {"iteration": 1})
-        assert result["iteration"] == 2
-
-    def test_best_result_updated_when_score_is_higher(self):
-        response = json.dumps({
-            "score": 9.0,
-            "approved": True,
-            "reason": "Great",
-            "qualitative_evaluation": "Excellent.",
-        })
-        previous_best = {"ai_score": 4.0}
-        result = self._run_evaluator(response, {"best_result": previous_best})
-        assert result["best_result"]["ai_score"] == 9.0
-
-    def test_best_result_not_updated_when_score_is_lower(self):
-        response = json.dumps({
-            "score": 2.0,
-            "approved": False,
-            "reason": "Poor",
-            "qualitative_evaluation": "Bad.",
-        })
-        previous_best = {"ai_score": 7.0}
-        result = self._run_evaluator(response, {"best_result": previous_best})
-        assert result["best_result"]["ai_score"] == 7.0
+    def test_ai_evaluation_populated(self):
+        mock_llm = _make_evaluator_mock(6.0, True, "Good", "Solid performance overall.")
+        result = self._run_evaluator(mock_llm)
+        assert result["ai_evaluation"] == "Solid performance overall."
 
 
 # ---------------------------------------------------------------------------
-# Graph integration test
+# Graph integration tests
 # ---------------------------------------------------------------------------
+
+def _graph_patches(evaluator_response: EvaluationResult):
+    """Return a context manager tuple that patches all external graph dependencies."""
+    prices = [{"date": "2023-01-01", "open": 100.0, "close": 105.0}]
+    indicators = [{"date": "2023-01-01", "rsi": 45.0}]
+
+    mock_researcher_llm = MagicMock()
+    mock_researcher_llm.invoke.return_value = "Buy when RSI < 30."
+
+    mock_coder_llm = MagicMock()
+    mock_coder_llm.invoke.return_value = (
+        "```python\nfrom backtesting import Strategy\n"
+        "class TradingStrategy(Strategy):\n"
+        "    def init(self): pass\n"
+        "    def next(self): pass\n```"
+    )
+
+    structured_llm = MagicMock()
+    structured_llm.invoke.return_value = evaluator_response
+    mock_evaluator_llm = MagicMock()
+    mock_evaluator_llm.with_structured_output.return_value = structured_llm
+
+    mock_sandbox = MagicMock()
+    mock_sandbox.commands.run.return_value = MagicMock(
+        stdout=json.dumps({"Sharpe Ratio": 0.8, "Return [%]": 10.0, "# Trades": 8})
+    )
+
+    return (
+        prices,
+        indicators,
+        mock_researcher_llm,
+        mock_coder_llm,
+        mock_evaluator_llm,
+        mock_sandbox,
+    )
+
 
 class TestGraphIntegration:
-    def test_graph_rejects_twice_then_approves(self):
-        """Mock all LLM/external calls. Reject iterations 0 and 1, approve iteration 2.
-
-        The evaluator LLM is mocked to return rejection JSON twice, then approval JSON.
-        All other external calls (ChromaDB, price/TA clients, E2B sandbox) are also mocked.
-        """
-        call_count = {"n": 0}
-
-        def evaluator_llm_invoke(prompt):
-            call_count["n"] += 1
-            if call_count["n"] >= 3:
-                return json.dumps({
-                    "score": 8.5,
-                    "approved": True,
-                    "reason": "All criteria met",
-                    "qualitative_evaluation": "Strong strategy.",
-                })
-            return json.dumps({
-                "score": 2.0,
-                "approved": False,
-                "reason": "Sharpe ratio too low",
-                "qualitative_evaluation": "Weak strategy.",
-            })
-
-        mock_researcher_llm = MagicMock()
-        mock_researcher_llm.invoke.return_value = "Buy when RSI < 30."
-
-        mock_coder_llm = MagicMock()
-        mock_coder_llm.invoke.return_value = '```python\nimport pandas as pd\nfrom backtesting import Strategy\ndata = pd.read_csv("data.csv", index_col="date", parse_dates=True)\nclass TradingStrategy(Strategy):\n    def init(self): pass\n    def next(self): pass\n```'
-
-        mock_evaluator_llm = MagicMock()
-        mock_evaluator_llm.invoke.side_effect = evaluator_llm_invoke
-
-        mock_sandbox = MagicMock()
-        mock_sandbox.commands.run.return_value = MagicMock(
-            stdout=json.dumps({"Sharpe Ratio": 0.8, "Return [%]": 10.0, "# Trades": 8})
+    def _invoke_graph(self, evaluator_response: EvaluationResult) -> StrategyState:
+        prices, indicators, mock_researcher_llm, mock_coder_llm, mock_evaluator_llm, mock_sandbox = (
+            _graph_patches(evaluator_response)
         )
-
-        prices = [{"date": "2023-01-01", "open": 100.0, "close": 105.0}]
-        indicators = [{"date": "2023-01-01", "rsi": 45.0}]
-
-        def make_llm(model, base_url):
-            # Return different mocks based on call context by tracking invocation order
-            # We use a simple approach: researcher and coder both call OllamaLLM
-            # We differentiate by patching each module's OllamaLLM import separately
-            return mock_evaluator_llm
 
         with (
             patch("app.agents.nodes.researcher.get_collection", return_value=MagicMock(
@@ -396,15 +362,14 @@ class TestGraphIntegration:
             patch("app.agents.nodes.fetcher.price_client.get_prices", return_value=prices),
             patch("app.agents.nodes.fetcher.ta_client.get_indicators", return_value=indicators),
             patch("app.agents.nodes.coder.OllamaLLM", return_value=mock_coder_llm),
-            patch("app.agents.nodes.executor.e2b_code_interpreter.Sandbox", return_value=mock_sandbox),
-            patch("app.agents.nodes.evaluator.OllamaLLM", return_value=mock_evaluator_llm),
+            patch("app.agents.nodes.executor.e2b_code_interpreter.Sandbox.create", return_value=mock_sandbox),
+            patch("app.agents.nodes.evaluator.ChatOllama", return_value=mock_evaluator_llm),
         ):
             from app.agents.graph import graph
 
             initial_state: StrategyState = {
                 "ticker": "AAPL",
                 "iteration": 0,
-                "max_iterations": 3,
                 "rag_context": "",
                 "hypothesis": "",
                 "previous_hypotheses": [],
@@ -419,7 +384,6 @@ class TestGraphIntegration:
                 "ai_evaluation": "",
                 "approved": False,
                 "rejection_reason": None,
-                "best_result": None,
             }
             final_state = graph.invoke(initial_state)
 
@@ -429,7 +393,28 @@ class TestGraphIntegration:
             if os.path.exists(path):
                 os.remove(path)
 
-        assert final_state["iteration"] == 3
+        return final_state
+
+    def test_graph_exits_after_single_evaluation_rejected(self):
+        response = EvaluationResult(
+            score=2.0,
+            approved=False,
+            reason="Sharpe ratio too low",
+            qualitative_evaluation="Weak strategy.",
+        )
+        final_state = self._invoke_graph(response)
+        assert final_state["approved"] is False
+        assert final_state["ai_score"] == 2.0
+        assert final_state["rejection_reason"] == "Sharpe ratio too low"
+
+    def test_graph_exits_after_single_evaluation_approved(self):
+        response = EvaluationResult(
+            score=8.5,
+            approved=True,
+            reason="All criteria met",
+            qualitative_evaluation="Strong strategy.",
+        )
+        final_state = self._invoke_graph(response)
         assert final_state["approved"] is True
-        assert final_state["best_result"] is not None
-        assert final_state["best_result"]["ai_score"] == 8.5
+        assert final_state["ai_score"] == 8.5
+        assert final_state["rejection_reason"] is None

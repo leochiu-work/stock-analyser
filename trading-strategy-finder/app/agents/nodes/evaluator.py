@@ -47,34 +47,11 @@ Evaluation rubric:
     reason = parsed.reason
     qualitative = parsed.qualitative_evaluation
 
-    current_best = state.get("best_result") or {}
-    current_best_score = current_best.get("ai_score", -1) if current_best else -1
-
-    if score > current_best_score:
-        best_result = {
-            "ai_score": score,
-            "ai_evaluation": qualitative,
-            "approved": approved,
-            "rejection_reason": reason if not approved else None,
-            "sharpe_ratio": stats.get("Sharpe Ratio"),
-            "total_return_pct": stats.get("Return [%]"),
-            "max_drawdown_pct": stats.get("Max. Drawdown [%]"),
-            "win_rate_pct": stats.get("Win Rate [%]"),
-            "num_trades": stats.get("# Trades"),
-            "execution_stats": stats,
-        }
-    else:
-        best_result = current_best
-
-    new_rejection_reasons = list(state["rejection_reasons"])
-    if not approved and reason:
-        new_rejection_reasons.append(reason)
-
     logger.info(
         "Evaluator: score=%.2f approved=%s iteration=%d",
         score,
         approved,
-        state["iteration"] + 1,
+        state["iteration"],
     )
 
     return {
@@ -82,7 +59,4 @@ Evaluation rubric:
         "ai_evaluation": qualitative,
         "approved": approved,
         "rejection_reason": reason if not approved else None,
-        "best_result": best_result,
-        "iteration": state["iteration"] + 1,
-        "rejection_reasons": new_rejection_reasons,
     }

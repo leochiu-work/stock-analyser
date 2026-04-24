@@ -17,10 +17,9 @@ def _insert_strategy(
     status: str = "completed",
 ) -> Strategy:
     s = Strategy(
-        id=uuid.uuid4(),
+        id=str(uuid.uuid4()),
         ticker=ticker,
         status=status,
-        iterations=1,
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
     )
@@ -78,10 +77,10 @@ class TestStrategyRepository:
 
     def test_update(self, db: Session):
         inserted = _insert_strategy(db)
-        updated = strategy_repository.update(db, inserted.id, status="failed", iterations=3)
+        updated = strategy_repository.update(db, inserted.id, status="failed", ai_score=7.5)
         assert updated is not None
         assert updated.status == "failed"
-        assert updated.iterations == 3
+        assert updated.ai_score == 7.5
 
     def test_update_not_found(self, db: Session):
         result = strategy_repository.update(db, uuid.uuid4(), status="failed")

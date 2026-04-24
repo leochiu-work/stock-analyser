@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
 from unittest.mock import MagicMock
 
 import pytest
@@ -10,6 +9,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, String, JSON, event
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
+from sqlalchemy.sql.schema import ColumnDefault
 
 from app.database import Base, get_db
 
@@ -31,14 +31,15 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 def _patch_models_for_sqlite():
     """Replace PostgreSQL-specific column types with SQLite-compatible equivalents."""
     from app.models.strategy import Strategy
-    from app.models.backtest_result import BacktestResult
 
+    # UUID type → String(36)
     Strategy.__table__.c["id"].type = String(36)
-    Strategy.__table__.c["parameters"].type = JSON()
 
-    BacktestResult.__table__.c["id"].type = String(36)
-    BacktestResult.__table__.c["strategy_id"].type = String(36)
-    BacktestResult.__table__.c["raw_output"].type = JSON()
+    # UUID default returns uuid.UUID objects; SQLite needs plain str
+    Strategy.__table__.c["id"].default = ColumnDefault(lambda: str(uuid.uuid4()))
+
+    # JSONB → JSON
+    Strategy.__table__.c["raw_output"].type = JSON()
 
 
 _patch_models_for_sqlite()
@@ -61,6 +62,20 @@ def _get_test_db():
         yield db
     finally:
         db.close()
+
+
+# ---------------------------------------------------------------------------
+# Test isolation: clear all tables before each test
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(autouse=True)
+def _clear_tables():
+    """Truncate all DB tables before every test to prevent cross-test data leakage."""
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        for table in reversed(Base.metadata.sorted_tables):
+            conn.execute(text(f"DELETE FROM {table.name}"))
+        conn.commit()
 
 
 # ---------------------------------------------------------------------------
