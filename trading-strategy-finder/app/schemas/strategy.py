@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict
 
 class StrategyCreate(BaseModel):
     ticker: str
+    max_iterations: int
 
 
 class StrategyResponse(BaseModel):

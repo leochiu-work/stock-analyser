@@ -13,7 +13,6 @@ class Settings(BaseSettings):
     chroma_port: int = 8000
     price_service_base_url: str = "http://stock-price-service:8000"
     ta_service_base_url: str = "http://stock-ta-service:8000"
-    max_research_iterations: int = 3
     backtest_years: int = 3
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

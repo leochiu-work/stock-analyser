@@ -92,5 +92,4 @@ Copy `.env.example` to `.env`. Critical variables:
 | `DATABASE_URL` | — | PostgreSQL connection string |
 | `API_KEY` | `changeme` | `X-API-Key` header (skipped for `/health`) |
 | `E2B_API_KEY` | — | Required for sandbox execution |
-| `MAX_RESEARCH_ITERATIONS` | `3` | Loop iterations before giving up |
 | `BACKTEST_YEARS` | `3` | Historical data window |

@@ -134,6 +134,7 @@ export function StrategiesView() {
   const { mutate } = useSWRConfig();
 
   const [ticker, setTicker] = useState("");
+  const [maxIterations, setMaxIterations] = useState(5);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -144,8 +145,9 @@ export function StrategiesView() {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      await createStrategy(trimmed);
+      await createStrategy(trimmed, maxIterations);
       setTicker("");
+      setMaxIterations(5);
       mutate(["strategies", JSON.stringify({})]);
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "Failed to start strategy research");
@@ -185,6 +187,19 @@ export function StrategiesView() {
             disabled={submitting}
           />
           {submitError && <p className="text-sm text-destructive">{submitError}</p>}
+        </div>
+        <div className="flex flex-col gap-1 w-32">
+          <Input
+            type="number"
+            min={1}
+            max={10}
+            value={maxIterations}
+            onChange={(e) => setMaxIterations(Math.max(1, Math.min(10, Number(e.target.value))))}
+            disabled={submitting}
+            aria-label="# Strategies"
+            placeholder="5"
+          />
+          <p className="text-xs text-muted-foreground"># Strategies</p>
         </div>
         <Button onClick={handleSubmit} disabled={submitting || !ticker.trim()}>
           {submitting ? "Starting…" : "Find Strategy"}

@@ -6,7 +6,6 @@ import logging
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.config import settings
 from app.models.strategy import Strategy
 from app.repositories import strategy_repository
 from app.agents.state import StrategyState
@@ -15,7 +14,7 @@ from app.agents.graph import graph
 logger = logging.getLogger(__name__)
 
 
-def run_research(ticker: str, db: Session) -> list[Strategy]:
+def run_research(ticker: str, db: Session, max_iterations: int) -> list[Strategy]:
     existing = strategy_repository.get_running_by_ticker(db, ticker)
     if existing is not None:
         raise HTTPException(
@@ -23,7 +22,6 @@ def run_research(ticker: str, db: Session) -> list[Strategy]:
             detail=f"A research run is already in progress for ticker '{ticker}'.",
         )
 
-    max_iterations = settings.max_research_iterations
     previous_hypotheses: list[str] = []
     rejection_reasons: list[str] = []
     csv_paths: list[str] = []

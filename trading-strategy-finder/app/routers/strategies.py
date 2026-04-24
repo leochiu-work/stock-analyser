@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api/v1/strategies", tags=["strategies"])
 
 @router.post("/research", response_model=list[StrategyResponse])
 def research_strategy(body: StrategyCreate, db: Session = Depends(get_db)):
-    return strategy_service.run_research(ticker=body.ticker.upper(), db=db)
+    return strategy_service.run_research(ticker=body.ticker.upper(), db=db, max_iterations=body.max_iterations)
 
 
 @router.get("/", response_model=list[StrategyResponse])

@@ -16,11 +16,11 @@ export async function fetchStrategies(params: {
   return res.json();
 }
 
-export async function createStrategy(ticker: string): Promise<StrategyItem> {
+export async function createStrategy(ticker: string, maxIterations: number): Promise<StrategyItem> {
   const res = await fetch('/api/strategies', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ticker }),
+    body: JSON.stringify({ ticker, max_iterations: maxIterations }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
