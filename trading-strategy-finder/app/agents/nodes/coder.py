@@ -24,11 +24,12 @@ def _extract_code(text: str) -> str:
 
 
 _BASE_REQUIREMENTS = """STRICT REQUIREMENTS:
-1. Define ONLY a class named exactly TradingStrategy that inherits from backtesting.Strategy
-2. Do NOT load data or import pandas — data is already loaded by the runner
-3. Do NOT instantiate Backtest or call bt.run()
-4. Implement init(self) to set up indicators using self.I()
-5. Implement next(self) with buy/sell logic
+1. Our backtesting.py is version 0.6.5, so the code must be compatible with that version.
+2. Define ONLY a class named exactly TradingStrategy that inherits from backtesting.Strategy
+3. Do NOT load data or import pandas — data is already loaded by the runner
+4. Do NOT instantiate Backtest or call bt.run()
+5. Implement init(self) to set up indicators using self.I()
+6. Implement next(self) with buy/sell logic
 
 IMPORTANT — how to access data inside the Strategy class:
 - OHLCV prices: use backtesting.py capitalized properties — self.data.Open, self.data.High, self.data.Low, self.data.Close

@@ -30,11 +30,17 @@ function fmt(value: number | null, decimals = 2, suffix = "") {
   return `${value.toFixed(decimals)}${suffix}`;
 }
 
-function ResultDetail({ result }: { result: StrategyWithResult }) {
+function ResultDetail({ result, hypothesis }: { result: StrategyWithResult; hypothesis: string | null }) {
   return (
     <tr>
       <td colSpan={6} className="px-6 pb-4 pt-0">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-muted/30 rounded-md p-4 text-sm">
+          {hypothesis && (
+            <div className="col-span-2 sm:col-span-4">
+              <p className="text-muted-foreground text-xs mb-1">Hypothesis</p>
+              <p className="leading-relaxed">{hypothesis}</p>
+            </div>
+          )}
           <div>
             <p className="text-muted-foreground text-xs mb-1">Sharpe Ratio</p>
             <p className="font-semibold tabular-nums">{fmt(result.sharpe_ratio)}</p>
@@ -124,7 +130,7 @@ function StrategyRow({ item, onDelete, deleting }: { item: StrategyItem; onDelet
           </Button>
         </td>
       </tr>
-      {expanded && result && <ResultDetail result={result} />}
+      {expanded && result && <ResultDetail result={result} hypothesis={item.hypothesis} />}
     </>
   );
 }

@@ -67,6 +67,7 @@ export interface StrategyItem {
   ticker: string;
   name: string | null;
   description: string | null;
+  hypothesis: string | null;
   status: StrategyStatus;
   iterations: number;
   created_at: string;
