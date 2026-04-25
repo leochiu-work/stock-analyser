@@ -35,28 +35,25 @@ uv run pytest tests/test_agent_nodes.py::test_researcher_node -v
 
 ### Agent Graph (`app/agents/`)
 
-The core is a LangGraph `StateGraph` in `graph.py` with five nodes sharing `StrategyState` (TypedDict in `state.py`):
+The core is a LangGraph `StateGraph` in `graph.py` with five nodes sharing `StrategyState` (TypedDict in `state.py`). Each `graph.invoke()` call produces exactly one strategy and always terminates at the evaluator — there is no loop back inside the graph.
 
 ```
-researcher → fetcher → coder → executor → evaluator
-    ↑                              ↓ (code error, retries < 3)
-    └──────────────────────────────┘ (rejected, iter < max)
+researcher → fetcher → coder → executor → evaluator → END
+                                    ↓ (code error, retries < 3)
+                                  coder (retry)
 ```
 
-- **researcher**: RAG query to ChromaDB with Ollama embeddings → generates a hypothesis. Receives `rejection_reasons` and `previous_hypotheses` to avoid repetition.
+- **researcher**: RAG query to ChromaDB with Ollama embeddings → generates a hypothesis. Receives `rejection_reasons` and `previous_hypotheses` to avoid repeating prior attempts.
 - **fetcher**: Calls `stock-price-service` and `stock-ta-service` via HTTP → merges OHLCV + indicators → saves CSV to `/tmp/backtest_{ticker}_{iter}.csv`.
 - **coder**: Generates a `TradingStrategy(Strategy)` class for `backtesting.py`. On executor failure, retries up to 3 times with the broken code as context.
 - **executor**: Runs code in an E2B sandbox — installs `backtesting`/`pandas`, uploads CSV + strategy files, wraps execution to output JSON stats. Catches `CommandExitException` and returns `code_error` for coder retry.
-- **evaluator**: Uses `ChatOllama` with `with_structured_output()` for guaranteed JSON scoring. Tracks `best_result` across iterations by `ai_score`. Appends rejection reasons to state.
+- **evaluator**: Uses `ChatOllama` with `with_structured_output()` for guaranteed JSON scoring. Sets `approved` flag and `rejection_reason`; always routes to END.
 
-Conditional routing after executor: `code_error` + `code_fix_retries < 3` → coder; else → evaluator.  
-Conditional routing after evaluator: `approved` or `iteration >= max_iterations` → END; else → researcher.
+Conditional routing after executor: `code_error` + `code_fix_retries < 3` → coder; else → evaluator.
 
 ### Service & Persistence (`app/services/strategy_service.py`)
 
-`run_research()` is the orchestration entry point: checks for conflicts (409 if already running), creates DB record, invokes `graph.invoke()` synchronously, persists `best_result` to `backtest_results`, cleans up temp CSV files, marks strategy as `completed` or `failed`.
-
-Every evaluator pass/fail is stored in `backtest_results` — full iteration history is preserved.
+`run_research()` owns the iteration loop — it calls `graph.invoke()` up to `max_iterations` times, each time producing one strategy. After each invocation it persists the result to PostgreSQL and appends the hypothesis and rejection reason to carry-forward context for the next iteration. If a strategy is approved, the loop breaks early. All strategies (approved or failed) are saved to the DB. Temp CSV files are cleaned up after all iterations complete.
 
 ### External Dependencies
 
