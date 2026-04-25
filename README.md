@@ -189,3 +189,5 @@ Add a ticker via the **Watchlist** page — the price and news services will sta
 - [ ] Add a social media monitoring service — track posts from influential figures (e.g. Donald Trump, Elon Musk) whose public statements can move stock prices; feed signals into the strategy pipeline
 - [ ] Improve the coder node — switch to a more capable model and inject up-to-date `backtesting.py` library documentation into the prompt to reduce code errors
 - [ ] Integrate IBKR (Interactive Brokers) sandbox to simulate real trade execution when a strategy is approved
+- [ ] Add observability with the LGTM stack (Loki, Grafana, Tempo, Prometheus) for logs, metrics, and traces across all services
+- [ ] Integrate LangSmith or LangTrace for tracing and monitoring the LangGraph agent pipeline
